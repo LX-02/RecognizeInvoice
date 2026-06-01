@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>发票识别 MVP</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f7f9;
+        --panel: #ffffff;
+        --text: #17202a;
+        --muted: #687385;
+        --line: #dfe3ea;
+        --accent: #176b87;
+        --accent-2: #1f8a70;
+        --danger: #b42318;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+      }
+
+      header {
+        border-bottom: 1px solid var(--line);
+        background: var(--panel);
+      }
+
+      .header-inner {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 18px 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 700;
+      }
+
+      .status {
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      main {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 24px;
+        display: grid;
+        grid-template-columns: 360px minmax(0, 1fr);
+        gap: 20px;
+      }
+
+      section {
+        min-width: 0;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+      }
+
+      .panel-header {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .panel-header h2 {
+        margin: 0;
+        font-size: 16px;
+      }
+
+      .upload-box {
+        padding: 16px;
+        display: grid;
+        gap: 12px;
+      }
+
+      input[type="file"] {
+        width: 100%;
+        padding: 10px;
+        border: 1px dashed var(--line);
+        border-radius: 6px;
+        background: #fbfcfd;
+      }
+
+      button {
+        appearance: none;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        background: var(--accent);
+        color: white;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        min-height: 38px;
+        padding: 8px 12px;
+      }
+
+      button.secondary {
+        background: white;
+        color: var(--accent);
+        border-color: var(--accent);
+      }
+
+      button.success {
+        background: var(--accent-2);
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+
+      .history {
+        max-height: calc(100vh - 230px);
+        overflow: auto;
+      }
+
+      .file-row {
+        width: 100%;
+        border: 0;
+        border-bottom: 1px solid var(--line);
+        background: white;
+        color: var(--text);
+        display: grid;
+        grid-template-columns: 72px minmax(0, 1fr);
+        gap: 12px;
+        padding: 12px 16px;
+        text-align: left;
+      }
+
+      .file-row:hover,
+      .file-row.active {
+        background: #eef7f6;
+      }
+
+      .thumb {
+        width: 72px;
+        height: 72px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        object-fit: cover;
+        background: #f2f4f7;
+      }
+
+      .file-name {
+        font-size: 14px;
+        font-weight: 650;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .meta {
+        margin-top: 5px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .content-grid {
+        display: grid;
+        grid-template-columns: minmax(260px, 42%) minmax(0, 1fr);
+        gap: 20px;
+      }
+
+      .preview-wrap {
+        padding: 16px;
+      }
+
+      .preview {
+        width: 100%;
+        max-height: 650px;
+        object-fit: contain;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #f8fafc;
+      }
+
+      .empty-preview {
+        min-height: 360px;
+        border: 1px dashed var(--line);
+        border-radius: 6px;
+        display: grid;
+        place-items: center;
+        color: var(--muted);
+        text-align: center;
+        padding: 24px;
+      }
+
+      .actions {
+        padding: 16px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      pre {
+        margin: 0;
+        min-height: 420px;
+        max-height: 650px;
+        overflow: auto;
+        padding: 16px;
+        background: #101828;
+        color: #d1fadf;
+        font-size: 13px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .error {
+        color: var(--danger);
+      }
+
+      @media (max-width: 900px) {
+        main,
+        .content-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .history {
+          max-height: 360px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="header-inner">
+        <h1>发票识别 MVP</h1>
+        <div id="status" class="status">准备就绪</div>
+      </div>
+    </header>
+
+    <main>
+      <section class="panel">
+        <div class="panel-header">
+          <h2>上传与历史</h2>
+          <button id="refreshBtn" class="secondary" type="button">刷新</button>
+        </div>
+        <div class="upload-box">
+          <input id="fileInput" type="file" accept="image/*" />
+          <button id="uploadBtn" type="button">上传图片</button>
+        </div>
+        <div id="history" class="history"></div>
+      </section>
+
+      <section class="content-grid">
+        <div class="panel">
+          <div class="panel-header">
+            <h2>图片预览</h2>
+          </div>
+          <div class="preview-wrap" id="previewWrap">
+            <div class="empty-preview">请选择或上传一张发票图片</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h2>识别结果 JSON</h2>
+          </div>
+          <div class="actions">
+            <button id="recognizeBtn" class="success" type="button" disabled>提交识别</button>
+            <button id="loadResultBtn" class="secondary" type="button" disabled>查看历史结果</button>
+          </div>
+          <pre id="result">{}</pre>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const state = {
+        files: [],
+        selected: null,
+        busy: false,
+      };
+
+      const els = {
+        status: document.getElementById("status"),
+        fileInput: document.getElementById("fileInput"),
+        uploadBtn: document.getElementById("uploadBtn"),
+        refreshBtn: document.getElementById("refreshBtn"),
+        history: document.getElementById("history"),
+        previewWrap: document.getElementById("previewWrap"),
+        recognizeBtn: document.getElementById("recognizeBtn"),
+        loadResultBtn: document.getElementById("loadResultBtn"),
+        result: document.getElementById("result"),
+      };
+
+      function setStatus(text, isError = false) {
+        els.status.textContent = text;
+        els.status.className = isError ? "status error" : "status";
+      }
+
+      function setBusy(value) {
+        state.busy = value;
+        els.uploadBtn.disabled = value;
+        els.refreshBtn.disabled = value;
+        els.recognizeBtn.disabled = value || !state.selected;
+        els.loadResultBtn.disabled = value || !state.selected || !state.selected.has_result;
+      }
+
+      function formatBytes(size) {
+        if (size < 1024) return `${size} B`;
+        if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+        return `${(size / 1024 / 1024).toFixed(1)} MB`;
+      }
+
+      function formatDate(value) {
+        if (!value) return "";
+        return new Date(value).toLocaleString();
+      }
+
+      function renderHistory() {
+        els.history.innerHTML = "";
+        if (!state.files.length) {
+          els.history.innerHTML = '<div class="empty-preview">暂无上传记录</div>';
+          return;
+        }
+
+        for (const file of state.files) {
+          const row = document.createElement("button");
+          row.type = "button";
+          row.className = `file-row ${state.selected?.id === file.id ? "active" : ""}`;
+          row.innerHTML = `
+            <img class="thumb" src="/uploads/${file.id}" alt="">
+            <div>
+              <div class="file-name" title="${file.filename}">${file.filename}</div>
+              <div class="meta">
+                ${formatBytes(file.size)}<br>
+                ${formatDate(file.uploaded_at)}<br>
+                ${file.has_result ? "已有识别结果" : "未识别"}
+              </div>
+            </div>
+          `;
+          row.addEventListener("click", () => selectFile(file));
+          els.history.appendChild(row);
+        }
+      }
+
+      function selectFile(file) {
+        state.selected = file;
+        els.previewWrap.innerHTML = `<img class="preview" src="/uploads/${file.id}" alt="${file.filename}">`;
+        els.result.textContent = "{}";
+        renderHistory();
+        setBusy(false);
+        setStatus(`已选择：${file.filename}`);
+      }
+
+      async function requestJson(url, options) {
+        const response = await fetch(url, options);
+        const text = await response.text();
+        let data = null;
+        try {
+          data = text ? JSON.parse(text) : null;
+        } catch {
+          data = text;
+        }
+        if (!response.ok) {
+          const message = data?.detail || data || response.statusText;
+          throw new Error(message);
+        }
+        return data;
+      }
+
+      async function loadFiles(keepSelection = true) {
+        setBusy(true);
+        try {
+          state.files = await requestJson("/api/files");
+          if (keepSelection && state.selected) {
+            state.selected = state.files.find((item) => item.id === state.selected.id) || state.selected;
+          }
+          renderHistory();
+          setStatus(`历史记录：${state.files.length} 张`);
+        } catch (error) {
+          setStatus(error.message, true);
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      async function uploadFile() {
+        const file = els.fileInput.files[0];
+        if (!file) {
+          setStatus("请先选择图片", true);
+          return;
+        }
+
+        setBusy(true);
+        setStatus("正在上传...");
+        try {
+          const formData = new FormData();
+          formData.append("file", file);
+          const data = await requestJson("/api/upload", {
+            method: "POST",
+            body: formData,
+          });
+          await loadFiles(false);
+          const selected = state.files.find((item) => item.id === data.file.id) || data.file;
+          selectFile(selected);
+          setStatus(data.duplicate ? "图片已存在，已复用历史记录" : "上传完成");
+        } catch (error) {
+          setStatus(error.message, true);
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      async function recognize() {
+        if (!state.selected) return;
+        setBusy(true);
+        setStatus("正在调用 Qwen VL OCR...");
+        try {
+          const data = await requestJson(`/api/recognize/${state.selected.id}`, { method: "POST" });
+          els.result.textContent = JSON.stringify(data, null, 2);
+          await loadFiles(true);
+          setStatus("识别完成");
+        } catch (error) {
+          setStatus(error.message, true);
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      async function loadResult() {
+        if (!state.selected) return;
+        setBusy(true);
+        try {
+          const data = await requestJson(`/api/results/${state.selected.id}`);
+          els.result.textContent = JSON.stringify(data, null, 2);
+          setStatus("已加载历史结果");
+        } catch (error) {
+          setStatus(error.message, true);
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      els.uploadBtn.addEventListener("click", uploadFile);
+      els.refreshBtn.addEventListener("click", () => loadFiles(true));
+      els.recognizeBtn.addEventListener("click", recognize);
+      els.loadResultBtn.addEventListener("click", loadResult);
+
+      loadFiles(false);
+    </script>
+  </body>
+</html>
