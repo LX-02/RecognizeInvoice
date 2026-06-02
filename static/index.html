@@ -161,6 +161,14 @@
         background: #f2f4f7;
       }
 
+      .thumb.pdf-thumb {
+        display: grid;
+        place-items: center;
+        color: var(--accent);
+        font-size: 13px;
+        font-weight: 700;
+      }
+
       .file-name {
         font-size: 14px;
         font-weight: 650;
@@ -195,6 +203,10 @@
         background: #f8fafc;
       }
 
+      .pdf-preview {
+        height: 650px;
+      }
+
       .empty-preview {
         min-height: 360px;
         border: 1px dashed var(--line);
@@ -216,16 +228,102 @@
 
       pre {
         margin: 0;
-        min-height: 420px;
-        max-height: 650px;
         overflow: auto;
-        padding: 16px;
+        padding: 14px;
         background: #101828;
         color: #d1fadf;
         font-size: 13px;
         line-height: 1.5;
         white-space: pre-wrap;
         word-break: break-word;
+      }
+
+      .result-view {
+        max-height: 650px;
+        overflow: auto;
+        padding: 16px;
+      }
+
+      .result-empty {
+        min-height: 420px;
+        border: 1px dashed var(--line);
+        border-radius: 6px;
+        display: grid;
+        place-items: center;
+        color: var(--muted);
+        text-align: center;
+        padding: 24px;
+      }
+
+      .table-title {
+        margin: 16px 0 8px;
+        font-size: 14px;
+        font-weight: 700;
+      }
+
+      .table-title:first-child {
+        margin-top: 0;
+      }
+
+      .table-wrap {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        overflow: auto;
+        background: white;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+
+      th,
+      td {
+        border-bottom: 1px solid var(--line);
+        padding: 9px 10px;
+        text-align: left;
+        vertical-align: top;
+        line-height: 1.45;
+      }
+
+      th {
+        background: #f2f5f8;
+        color: #344054;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+
+      tr:last-child th,
+      tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .field-name {
+        width: 150px;
+        color: #344054;
+        font-weight: 650;
+        white-space: nowrap;
+      }
+
+      .field-value {
+        word-break: break-word;
+      }
+
+      .muted-value {
+        color: var(--muted);
+      }
+
+      details {
+        margin-top: 16px;
+      }
+
+      summary {
+        cursor: pointer;
+        color: var(--accent);
+        font-size: 14px;
+        font-weight: 700;
+        margin-bottom: 8px;
       }
 
       .error {
@@ -259,8 +357,8 @@
           <button id="refreshBtn" class="secondary" type="button">刷新</button>
         </div>
         <div class="upload-box">
-          <input id="fileInput" type="file" accept="image/*" />
-          <button id="uploadBtn" type="button">上传图片</button>
+          <input id="fileInput" type="file" accept="image/*,.pdf" />
+          <button id="uploadBtn" type="button">上传文件</button>
         </div>
         <div id="history" class="history"></div>
       </section>
@@ -268,7 +366,7 @@
       <section class="content-grid">
         <div class="panel">
           <div class="panel-header">
-            <h2>图片预览</h2>
+            <h2>文件预览</h2>
           </div>
           <div class="preview-wrap" id="previewWrap">
             <div class="empty-preview">请选择或上传一张发票图片</div>
@@ -277,13 +375,13 @@
 
         <div class="panel">
           <div class="panel-header">
-            <h2>识别结果 JSON</h2>
+            <h2>识别结果</h2>
           </div>
           <div class="actions">
             <button id="recognizeBtn" class="success" type="button" disabled>提交识别</button>
             <button id="loadResultBtn" class="secondary" type="button" disabled>查看历史结果</button>
           </div>
-          <pre id="result">{}</pre>
+          <div id="result" class="result-view"></div>
         </div>
       </section>
     </main>
@@ -293,6 +391,68 @@
         files: [],
         selected: null,
         busy: false,
+        fieldMapping: null,
+      };
+
+      const DEFAULT_FIELD_MAPPING = {
+        groups: [
+          {
+            title: "发票身份",
+            fields: [
+              { key: "invoice_type", label: "发票类型" },
+              { key: "invoice_code", label: "发票代码" },
+              { key: "invoice_number", label: "发票号码" },
+              { key: "digital_invoice_number", label: "数电票号码" },
+              { key: "issue_date", label: "开票日期" },
+              { key: "check_code", label: "校验码" },
+            ],
+          },
+          {
+            title: "购买方信息",
+            fields: [
+              { key: "buyer_name", label: "购买方名称" },
+              { key: "buyer_tax_id", label: "购买方税号" },
+            ],
+          },
+          {
+            title: "销售方信息",
+            fields: [
+              { key: "seller_name", label: "销售方名称" },
+              { key: "seller_tax_id", label: "销售方税号" },
+            ],
+          },
+          {
+            title: "金额和税额",
+            fields: [
+              { key: "amount_without_tax", label: "不含税金额" },
+              { key: "tax_rate", label: "税率/征收率" },
+              { key: "tax_amount", label: "税额" },
+              { key: "total_amount", label: "价税合计小写" },
+              { key: "total_amount_cn", label: "价税合计大写" },
+            ],
+          },
+          {
+            title: "辅助信息",
+            fields: [
+              { key: "remark", label: "备注" },
+              { key: "issuer", label: "开票人" },
+              { key: "ocr_text", label: "OCR 原文" },
+            ],
+          },
+        ],
+        items: {
+          title: "发票明细",
+          fields: [
+            { key: "name", label: "项目名称" },
+            { key: "spec", label: "规格型号" },
+            { key: "unit", label: "单位" },
+            { key: "quantity", label: "数量" },
+            { key: "unit_price", label: "单价" },
+            { key: "amount", label: "金额" },
+            { key: "tax_rate", label: "税率" },
+            { key: "tax_amount", label: "税额" },
+          ],
+        },
       };
 
       const els = {
@@ -331,10 +491,131 @@
         return new Date(value).toLocaleString();
       }
 
+      function valueText(value) {
+        if (value === null || value === undefined || value === "") return "-";
+        if (Array.isArray(value)) return value.length ? JSON.stringify(value) : "-";
+        if (typeof value === "object") return JSON.stringify(value);
+        return String(value);
+      }
+
+      function appendCell(row, text, tagName = "td", className = "") {
+        const cell = document.createElement(tagName);
+        cell.className = className;
+        cell.textContent = valueText(text);
+        if (cell.textContent === "-") {
+          cell.classList.add("muted-value");
+        }
+        row.appendChild(cell);
+        return cell;
+      }
+
+      function createSectionTitle(text) {
+        const title = document.createElement("div");
+        title.className = "table-title";
+        title.textContent = text;
+        return title;
+      }
+
+      function createEmptyMessage(className, text) {
+        const empty = document.createElement("div");
+        empty.className = className;
+        empty.textContent = text;
+        return empty;
+      }
+
+      function appendLine(container, text) {
+        if (container.childNodes.length) {
+          container.appendChild(document.createElement("br"));
+        }
+        container.appendChild(document.createTextNode(text));
+      }
+
+      function isPdf(file) {
+        return file?.content_type === "application/pdf" || file?.filename?.toLowerCase().endsWith(".pdf");
+      }
+
+      function createKeyValueTable(fields, data) {
+        const wrap = document.createElement("div");
+        wrap.className = "table-wrap";
+        const table = document.createElement("table");
+        const tbody = document.createElement("tbody");
+
+        for (const field of fields) {
+          const row = document.createElement("tr");
+          appendCell(row, field.label, "th", "field-name");
+          appendCell(row, data?.[field.key], "td", "field-value");
+          tbody.appendChild(row);
+        }
+
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+        return wrap;
+      }
+
+      function createItemsTable(items, fields) {
+        const wrap = document.createElement("div");
+        wrap.className = "table-wrap";
+        const table = document.createElement("table");
+        const thead = document.createElement("thead");
+        const headRow = document.createElement("tr");
+        for (const field of fields) {
+          appendCell(headRow, field.label, "th");
+        }
+        thead.appendChild(headRow);
+
+        const tbody = document.createElement("tbody");
+        const rows = Array.isArray(items) && items.length ? items : [{}];
+        for (const item of rows) {
+          const row = document.createElement("tr");
+          for (const field of fields) {
+            appendCell(row, item?.[field.key]);
+          }
+          tbody.appendChild(row);
+        }
+
+        table.append(thead, tbody);
+        wrap.appendChild(table);
+        return wrap;
+      }
+
+      function renderResult(payload) {
+        els.result.replaceChildren();
+        if (!payload) {
+          els.result.replaceChildren(createEmptyMessage("result-empty", "暂无识别结果"));
+          return;
+        }
+
+        const data = payload.result || payload;
+        const mapping = state.fieldMapping || DEFAULT_FIELD_MAPPING;
+
+        for (const group of mapping.groups || []) {
+          els.result.append(createSectionTitle(group.title), createKeyValueTable(group.fields || [], data));
+        }
+
+        const itemMapping = mapping.items || DEFAULT_FIELD_MAPPING.items;
+        els.result.append(createSectionTitle(itemMapping.title), createItemsTable(data.items, itemMapping.fields || []));
+
+        const details = document.createElement("details");
+        const summary = document.createElement("summary");
+        summary.textContent = "查看原始 JSON";
+        const pre = document.createElement("pre");
+        pre.textContent = JSON.stringify(payload, null, 2);
+        details.append(summary, pre);
+        els.result.appendChild(details);
+      }
+
+      async function loadFieldMapping() {
+        try {
+          state.fieldMapping = await requestJson("/static/field-mapping.json");
+        } catch {
+          state.fieldMapping = DEFAULT_FIELD_MAPPING;
+        }
+      }
+
       function renderHistory() {
-        els.history.innerHTML = "";
+        els.history.replaceChildren();
         if (!state.files.length) {
-          els.history.innerHTML = '<div class="empty-preview">暂无上传记录</div>';
+          els.history.replaceChildren(createEmptyMessage("empty-preview", "暂无上传记录"));
           return;
         }
 
@@ -342,17 +623,32 @@
           const row = document.createElement("button");
           row.type = "button";
           row.className = `file-row ${state.selected?.id === file.id ? "active" : ""}`;
-          row.innerHTML = `
-            <img class="thumb" src="/uploads/${file.id}" alt="">
-            <div>
-              <div class="file-name" title="${file.filename}">${file.filename}</div>
-              <div class="meta">
-                ${formatBytes(file.size)}<br>
-                ${formatDate(file.uploaded_at)}<br>
-                ${file.has_result ? "已有识别结果" : "未识别"}
-              </div>
-            </div>
-          `;
+          let thumb = null;
+          if (isPdf(file)) {
+            thumb = document.createElement("div");
+            thumb.className = "thumb pdf-thumb";
+            thumb.textContent = "PDF";
+          } else {
+            thumb = document.createElement("img");
+            thumb.className = "thumb";
+            thumb.src = `/uploads/${file.id}`;
+            thumb.alt = "";
+          }
+
+          const info = document.createElement("div");
+          const name = document.createElement("div");
+          name.className = "file-name";
+          name.title = file.filename;
+          name.textContent = file.filename;
+
+          const meta = document.createElement("div");
+          meta.className = "meta";
+          appendLine(meta, formatBytes(file.size));
+          appendLine(meta, formatDate(file.uploaded_at));
+          appendLine(meta, file.has_result ? "已有识别结果" : "未识别");
+
+          info.append(name, meta);
+          row.append(thumb, info);
           row.addEventListener("click", () => selectFile(file));
           els.history.appendChild(row);
         }
@@ -360,8 +656,17 @@
 
       function selectFile(file) {
         state.selected = file;
-        els.previewWrap.innerHTML = `<img class="preview" src="/uploads/${file.id}" alt="${file.filename}">`;
-        els.result.textContent = "{}";
+        const preview = document.createElement(isPdf(file) ? "object" : "img");
+        preview.className = `preview ${isPdf(file) ? "pdf-preview" : ""}`;
+        if (isPdf(file)) {
+          preview.data = `/uploads/${file.id}`;
+          preview.type = "application/pdf";
+        } else {
+          preview.src = `/uploads/${file.id}`;
+          preview.alt = file.filename;
+        }
+        els.previewWrap.replaceChildren(preview);
+        renderResult(null);
         renderHistory();
         setBusy(false);
         setStatus(`已选择：${file.filename}`);
@@ -432,7 +737,7 @@
         setStatus("正在调用 Qwen VL OCR...");
         try {
           const data = await requestJson(`/api/recognize/${state.selected.id}`, { method: "POST" });
-          els.result.textContent = JSON.stringify(data, null, 2);
+          renderResult(data);
           await loadFiles(true);
           setStatus("识别完成");
         } catch (error) {
@@ -447,7 +752,7 @@
         setBusy(true);
         try {
           const data = await requestJson(`/api/results/${state.selected.id}`);
-          els.result.textContent = JSON.stringify(data, null, 2);
+          renderResult(data);
           setStatus("已加载历史结果");
         } catch (error) {
           setStatus(error.message, true);
@@ -461,7 +766,13 @@
       els.recognizeBtn.addEventListener("click", recognize);
       els.loadResultBtn.addEventListener("click", loadResult);
 
-      loadFiles(false);
+      async function boot() {
+        await loadFieldMapping();
+        renderResult(null);
+        await loadFiles(false);
+      }
+
+      boot();
     </script>
   </body>
 </html>

@@ -2,10 +2,12 @@
 .idea/
 __pycache__/
 *.py[cod]
+.ruff_cache/
 
 .env
 .env.*
+!.env.example
 
 uploads/
+data/
 *.log
-

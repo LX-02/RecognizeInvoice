@@ -1,0 +1,60 @@
+{
+  "groups": [
+    {
+      "title": "发票身份",
+      "fields": [
+        { "key": "invoice_type", "label": "发票类型" },
+        { "key": "invoice_code", "label": "发票代码" },
+        { "key": "invoice_number", "label": "发票号码" },
+        { "key": "digital_invoice_number", "label": "数电票号码" },
+        { "key": "issue_date", "label": "开票日期" },
+        { "key": "check_code", "label": "校验码" }
+      ]
+    },
+    {
+      "title": "购买方信息",
+      "fields": [
+        { "key": "buyer_name", "label": "购买方名称" },
+        { "key": "buyer_tax_id", "label": "购买方税号" }
+      ]
+    },
+    {
+      "title": "销售方信息",
+      "fields": [
+        { "key": "seller_name", "label": "销售方名称" },
+        { "key": "seller_tax_id", "label": "销售方税号" }
+      ]
+    },
+    {
+      "title": "金额和税额",
+      "fields": [
+        { "key": "amount_without_tax", "label": "不含税金额" },
+        { "key": "tax_rate", "label": "税率/征收率" },
+        { "key": "tax_amount", "label": "税额" },
+        { "key": "total_amount", "label": "价税合计小写" },
+        { "key": "total_amount_cn", "label": "价税合计大写" }
+      ]
+    },
+    {
+      "title": "辅助信息",
+      "fields": [
+        { "key": "remark", "label": "备注" },
+        { "key": "issuer", "label": "开票人" },
+        { "key": "ocr_text", "label": "OCR 原文" }
+      ]
+    }
+  ],
+  "items": {
+    "title": "发票明细",
+    "fields": [
+      { "key": "name", "label": "项目名称" },
+      { "key": "spec", "label": "规格型号" },
+      { "key": "unit", "label": "单位" },
+      { "key": "quantity", "label": "数量" },
+      { "key": "unit_price", "label": "单价" },
+      { "key": "amount", "label": "金额" },
+      { "key": "tax_rate", "label": "税率" },
+      { "key": "tax_amount", "label": "税额" }
+    ]
+  }
+}
