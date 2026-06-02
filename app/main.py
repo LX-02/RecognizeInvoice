@@ -18,15 +18,18 @@ from app.storage import ensure_dirs
 
 def configure_logging() -> None:
     log_level_name = os.getenv("LOG_LEVEL", "DEBUG").upper()
-    log_level = getattr(logging, log_level_name, logging.DEBUG)
+    app_log_level = getattr(logging, log_level_name, logging.DEBUG)
 
     root_logger = logging.getLogger()
-    root_logger.setLevel(log_level)
-    logging.getLogger("app").setLevel(log_level)
+    root_logger.setLevel(logging.INFO)
+    logging.getLogger("app").setLevel(app_log_level)
+
+    for logger_name in ("asyncio", "watchfiles", "uvicorn"):
+        logging.getLogger(logger_name).setLevel(logging.INFO)
 
     if not root_logger.handlers:
         logging.basicConfig(
-            level=log_level,
+            level=logging.INFO,
             format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
         )
 
