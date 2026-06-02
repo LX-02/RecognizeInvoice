@@ -60,5 +60,5 @@ if __name__ == "__main__":
         host="127.0.0.1",
         port=8000,
         reload=True,
-        log_level=os.getenv("LOG_LEVEL", "DEBUG").lower(),
+        log_level=os.getenv("UVICORN_LOG_LEVEL", "info").lower(),
     )
