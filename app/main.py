@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 import logging
 import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI
@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.routes.files import router as files_router
+from app.routes.models import router as models_router
 from app.routes.recognition import router as recognition_router
 from app.storage import ensure_dirs
 
@@ -46,6 +47,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="RecognizeInvoice MVP", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=settings.static_dir), name="static")
 app.include_router(files_router)
+app.include_router(models_router)
 app.include_router(recognition_router)
 
 

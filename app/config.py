@@ -15,13 +15,13 @@ class Settings:
     data_dir: Path = ROOT_DIR / "data"
     upload_dir: Path = ROOT_DIR / "data" / "uploads"
     result_dir: Path = ROOT_DIR / "data" / "results"
+    ocr_model_config_path: Path = ROOT_DIR / "config" / "ocr-models.json"
     static_dir: Path = ROOT_DIR / "static"
     index_path: Path = ROOT_DIR / "data" / "index.json"
     allowed_extensions: frozenset[str] = frozenset(
         {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".pdf"}
     )
     default_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-    default_model: str = "qwen-vl-ocr-latest"
 
 
 settings = Settings()

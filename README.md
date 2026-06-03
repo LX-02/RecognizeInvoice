@@ -6,8 +6,8 @@
 
 - 上传图片或 PDF 发票文件，PDF 识别时会先在内存中渲染为 PNG 页面图。
 - 按文件哈希做基础重复上传识别。
-- 调用 OCR 模型提取发票身份、购销方、金额税额、明细和辅助信息。
-- 将识别结果保存为 JSON，支持查看历史结果。
+- 调用可配置 OCR 模型提取发票身份、购销方、金额税额、明细和辅助信息。
+- 将不同模型的识别结果分别保存为 JSON，支持按模型查看历史结果。
 - 通过 `static/field-mapping.json` 配置前端字段展示名称、分组和顺序。
 
 ## 项目结构
@@ -20,15 +20,19 @@ app/
   storage.py           上传索引、文件和结果读写
   routes/
     files.py           上传、列表、预览、结果查询接口
+    models.py          OCR 模型列表接口
     recognition.py     识别接口
   services/
+    model_config.py    OCR 模型配置读取和校验
     ocr.py             OCR 请求、Data URL 和 JSON 解析
+config/
+  ocr-models.json      可选 OCR 模型配置
 static/
   index.html           前端页面
   field-mapping.json   字段展示配置
 data/
   uploads/             原始上传文件，本地运行时生成
-  results/             每个文件的识别 JSON，本地运行时生成
+  results/             每个文件按模型保存的识别 JSON，本地运行时生成
   index.json           上传历史索引，本地运行时生成
 ```
 
@@ -53,9 +57,27 @@ http://127.0.0.1:8000
 
 - `DASHSCOPE_API_KEY`：必填，阿里云百炼 API Key。
 - `DASHSCOPE_BASE_URL`：可选，默认 `https://dashscope.aliyuncs.com/compatible-mode/v1`。
-- `QWEN_OCR_MODEL`：可选，默认 `qwen-vl-ocr-latest`。
 - `PDF_RENDER_DPI`：可选，PDF 转 PNG 的渲染清晰度，默认 `200`。
 - `PDF_MAX_PAGES`：可选，PDF 最多渲染并提交识别的页数，默认 `1`。
+
+## OCR 模型配置
+
+模型列表维护在 `config/ocr-models.json`，前端会通过 `/api/models` 读取并展示下拉选项。
+
+```json
+{
+  "default": "qwen3.7-plus",
+  "models": [
+    {
+      "key": "qwen3.7-plus",
+      "label": "qwen3.7-plus",
+      "model": "qwen3.7-plus"
+    }
+  ]
+}
+```
+
+识别结果保存为 `data/results/{file_id}_{model_key}.json`。旧版 `data/results/{file_id}.json` 不会被删除，查询默认模型结果时会作为兼容回退读取。
 
 ## 开发规范
 

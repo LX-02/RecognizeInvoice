@@ -223,7 +223,31 @@
         border-bottom: 1px solid var(--line);
         display: flex;
         flex-wrap: wrap;
+        align-items: end;
         gap: 10px;
+      }
+
+      .model-picker {
+        min-width: 220px;
+        display: grid;
+        gap: 5px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 650;
+      }
+
+      select {
+        min-height: 38px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: white;
+        color: var(--text);
+        font: inherit;
+        padding: 8px 10px;
+      }
+
+      select:disabled {
+        opacity: 0.55;
       }
 
       pre {
@@ -242,6 +266,13 @@
         max-height: 650px;
         overflow: auto;
         padding: 16px;
+      }
+
+      .result-meta {
+        margin-bottom: 14px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.6;
       }
 
       .result-empty {
@@ -378,8 +409,12 @@
             <h2>识别结果</h2>
           </div>
           <div class="actions">
+            <label class="model-picker" for="modelSelect">
+              <span>识别模型</span>
+              <select id="modelSelect"></select>
+            </label>
             <button id="recognizeBtn" class="success" type="button" disabled>提交识别</button>
-            <button id="loadResultBtn" class="secondary" type="button" disabled>查看历史结果</button>
+            <button id="loadResultBtn" class="secondary" type="button" disabled>查看该模型结果</button>
           </div>
           <div id="result" class="result-view"></div>
         </div>
@@ -392,6 +427,9 @@
         selected: null,
         busy: false,
         fieldMapping: null,
+        models: [],
+        defaultModelKey: "",
+        selectedModelKey: "",
       };
 
       const DEFAULT_FIELD_MAPPING = {
@@ -462,6 +500,7 @@
         refreshBtn: document.getElementById("refreshBtn"),
         history: document.getElementById("history"),
         previewWrap: document.getElementById("previewWrap"),
+        modelSelect: document.getElementById("modelSelect"),
         recognizeBtn: document.getElementById("recognizeBtn"),
         loadResultBtn: document.getElementById("loadResultBtn"),
         result: document.getElementById("result"),
@@ -476,8 +515,20 @@
         state.busy = value;
         els.uploadBtn.disabled = value;
         els.refreshBtn.disabled = value;
-        els.recognizeBtn.disabled = value || !state.selected;
-        els.loadResultBtn.disabled = value || !state.selected || !state.selected.has_result;
+        els.modelSelect.disabled = value || !state.models.length;
+        els.recognizeBtn.disabled = value || !state.selected || !state.selectedModelKey;
+        els.loadResultBtn.disabled = value || !selectedModelHasResult();
+      }
+
+      function modelLabel(modelKey) {
+        return state.models.find((model) => model.key === modelKey)?.label || modelKey || "";
+      }
+
+      function selectedModelHasResult() {
+        if (!state.selected || !state.selectedModelKey) return false;
+        const resultKeys = state.selected.result_model_keys || [];
+        if (resultKeys.includes(state.selectedModelKey)) return true;
+        return Boolean(state.selected.has_legacy_result && state.selectedModelKey === state.defaultModelKey);
       }
 
       function formatBytes(size) {
@@ -587,6 +638,19 @@
 
         const data = payload.result || payload;
         const mapping = state.fieldMapping || DEFAULT_FIELD_MAPPING;
+        const metaLines = [];
+        const resultModelLabel = payload.model_label || modelLabel(payload.model_key) || payload.model;
+        if (resultModelLabel) metaLines.push(`模型：${resultModelLabel}`);
+        if (payload.model) metaLines.push(`模型 ID：${payload.model}`);
+        if (payload.recognized_at) metaLines.push(`识别时间：${formatDate(payload.recognized_at)}`);
+        if (metaLines.length) {
+          const meta = document.createElement("div");
+          meta.className = "result-meta";
+          for (const line of metaLines) {
+            appendLine(meta, line);
+          }
+          els.result.appendChild(meta);
+        }
 
         for (const group of mapping.groups || []) {
           els.result.append(createSectionTitle(group.title), createKeyValueTable(group.fields || [], data));
@@ -610,6 +674,25 @@
         } catch {
           state.fieldMapping = DEFAULT_FIELD_MAPPING;
         }
+      }
+
+      function renderModelOptions() {
+        els.modelSelect.replaceChildren();
+        for (const model of state.models) {
+          const option = document.createElement("option");
+          option.value = model.key;
+          option.textContent = model.label;
+          els.modelSelect.appendChild(option);
+        }
+        els.modelSelect.value = state.selectedModelKey;
+      }
+
+      async function loadModels() {
+        const data = await requestJson("/api/models");
+        state.models = data.models || [];
+        state.defaultModelKey = data.default || state.models[0]?.key || "";
+        state.selectedModelKey = state.selectedModelKey || state.defaultModelKey;
+        renderModelOptions();
       }
 
       function renderHistory() {
@@ -646,6 +729,12 @@
           appendLine(meta, formatBytes(file.size));
           appendLine(meta, formatDate(file.uploaded_at));
           appendLine(meta, file.has_result ? "已有识别结果" : "未识别");
+          const resultKeys = file.result_model_keys || [];
+          if (resultKeys.length) {
+            appendLine(meta, `结果模型：${resultKeys.map(modelLabel).join("、")}`);
+          } else if (file.has_legacy_result) {
+            appendLine(meta, "结果模型：旧版默认结果");
+          }
 
           info.append(name, meta);
           row.append(thumb, info);
@@ -732,11 +821,15 @@
       }
 
       async function recognize() {
-        if (!state.selected) return;
+        if (!state.selected || !state.selectedModelKey) return;
         setBusy(true);
-        setStatus("正在调用 Qwen VL OCR...");
+        setStatus(`正在调用 ${modelLabel(state.selectedModelKey)}...`);
         try {
-          const data = await requestJson(`/api/recognize/${state.selected.id}`, { method: "POST" });
+          const data = await requestJson(`/api/recognize/${state.selected.id}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ model_key: state.selectedModelKey }),
+          });
           renderResult(data);
           await loadFiles(true);
           setStatus("识别完成");
@@ -748,12 +841,13 @@
       }
 
       async function loadResult() {
-        if (!state.selected) return;
+        if (!state.selected || !state.selectedModelKey) return;
         setBusy(true);
         try {
-          const data = await requestJson(`/api/results/${state.selected.id}`);
+          const query = new URLSearchParams({ model_key: state.selectedModelKey });
+          const data = await requestJson(`/api/results/${state.selected.id}?${query}`);
           renderResult(data);
-          setStatus("已加载历史结果");
+          setStatus(`已加载 ${modelLabel(state.selectedModelKey)} 结果`);
         } catch (error) {
           setStatus(error.message, true);
         } finally {
@@ -765,8 +859,15 @@
       els.refreshBtn.addEventListener("click", () => loadFiles(true));
       els.recognizeBtn.addEventListener("click", recognize);
       els.loadResultBtn.addEventListener("click", loadResult);
+      els.modelSelect.addEventListener("change", () => {
+        state.selectedModelKey = els.modelSelect.value;
+        renderResult(null);
+        setBusy(false);
+        setStatus(`已选择模型：${modelLabel(state.selectedModelKey)}`);
+      });
 
       async function boot() {
+        await loadModels();
         await loadFieldMapping();
         renderResult(null);
         await loadFiles(false);

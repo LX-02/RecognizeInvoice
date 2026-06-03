@@ -1,0 +1,15 @@
+{
+  "default": "qwen3.7-plus",
+  "models": [
+    {
+      "key": "qwen3.7-plus",
+      "label": "qwen3.7-plus",
+      "model": "qwen3.7-plus"
+    },
+    {
+      "key": "qwen3.6-flash",
+      "label": "qwen3.6-flash",
+      "model": "qwen3.6-flash"
+    }
+  ]
+}

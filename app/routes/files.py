@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse
 
 from app.config import settings
 from app.schemas import UploadResponse
+from app.services.model_config import get_default_model_key, get_ocr_model
 from app.storage import get_record, list_upload_records, load_result, save_upload
 
 router = APIRouter()
@@ -23,8 +24,17 @@ async def upload_invoice(file: Annotated[UploadFile, File()]) -> UploadResponse:
 
 
 @router.get("/api/results/{file_id}")
-def get_result(file_id: str) -> Any:
-    return load_result(file_id)
+def get_result(file_id: str, model_key: str | None = None) -> Any:
+    if not model_key:
+        return load_result(file_id)
+
+    model_config = get_ocr_model(model_key)
+    allow_legacy_fallback = model_config["key"] == get_default_model_key()
+    return load_result(
+        file_id,
+        model_config["key"],
+        allow_legacy_fallback=allow_legacy_fallback,
+    )
 
 
 @router.get("/uploads/{file_id}")
