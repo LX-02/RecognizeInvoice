@@ -102,10 +102,78 @@ PROMPT = """你是企业 ERP 报销发票识别验证阶段的 VL-OCR 抽取助�
 USER_OCR_PROMPT = "请识别这张发票或报销票据图片，按 system prompt 的字段和格式要求只返回 JSON。"
 
 
+def to_data_url_from_bytes(content: bytes, mime_type: str) -> str:
+    encoded = base64.b64encode(content).decode("ascii")
+    return f"data:{mime_type};base64,{encoded}"
+
+
 def to_data_url(path: Path, content_type: str | None) -> str:
     mime_type = content_type or mimetypes.guess_type(path.name)[0] or "application/octet-stream"
-    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
-    return f"data:{mime_type};base64,{encoded}"
+    return to_data_url_from_bytes(path.read_bytes(), mime_type)
+
+
+def is_pdf(record: dict[str, Any], path: Path) -> bool:
+    content_type = (record.get("content_type") or "").split(";")[0].lower()
+    return content_type == "application/pdf" or path.suffix.lower() == ".pdf"
+
+
+def read_positive_int_env(name: str, default: int) -> int:
+    raw_value = os.getenv(name)
+    if not raw_value:
+        return default
+    try:
+        value = int(raw_value)
+    except ValueError as exc:
+        raise HTTPException(status_code=500, detail=f"{name} must be a positive integer") from exc
+    if value <= 0:
+        raise HTTPException(status_code=500, detail=f"{name} must be a positive integer")
+    return value
+
+
+def render_pdf_pages(upload_path: Path) -> tuple[list[str], dict[str, Any]]:
+    try:
+        import fitz
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="PDF recognition requires PyMuPDF. Run `pip install -r requirements.txt`.",
+        ) from exc
+
+    dpi = read_positive_int_env("PDF_RENDER_DPI", 200)
+    max_pages = read_positive_int_env("PDF_MAX_PAGES", 1)
+
+    try:
+        with fitz.open(upload_path) as document:
+            total_pages = document.page_count
+            if total_pages <= 0:
+                raise HTTPException(status_code=400, detail="PDF file has no pages")
+
+            rendered_pages = min(total_pages, max_pages)
+            data_urls = []
+            for page_index in range(rendered_pages):
+                page = document.load_page(page_index)
+                pixmap = page.get_pixmap(dpi=dpi, alpha=False)
+                data_urls.append(to_data_url_from_bytes(pixmap.tobytes("png"), "image/png"))
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Failed to render PDF: {exc}") from exc
+
+    return data_urls, {
+        "kind": "pdf",
+        "render_dpi": dpi,
+        "rendered_pages": rendered_pages,
+        "total_pages": total_pages,
+    }
+
+
+def prepare_model_images(record: dict[str, Any], upload_path: Path) -> tuple[list[str], dict[str, Any]]:
+    if is_pdf(record, upload_path):
+        return render_pdf_pages(upload_path)
+    return [to_data_url(upload_path, record.get("content_type"))], {
+        "kind": "image",
+        "image_count": 1,
+    }
 
 
 def parse_json_object(text: str) -> Any:
@@ -132,6 +200,17 @@ def recognize_file(record: dict[str, Any], upload_path: Path) -> dict[str, Any]:
         base_url=os.getenv("DASHSCOPE_BASE_URL", settings.default_base_url),
     )
 
+    image_data_urls, input_meta = prepare_model_images(record, upload_path)
+    image_messages = [
+        {
+            "type": "image_url",
+            "image_url": {
+                "url": data_url,
+            },
+        }
+        for data_url in image_data_urls
+    ]
+
     try:
         completion = client.chat.completions.create(
             model=os.getenv("QWEN_OCR_MODEL", settings.default_model),
@@ -144,12 +223,7 @@ def recognize_file(record: dict[str, Any], upload_path: Path) -> dict[str, Any]:
                     "role": "user",
                     "content": [
                         {"type": "text", "text": USER_OCR_PROMPT},
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": to_data_url(upload_path, record.get("content_type")),
-                            },
-                        },
+                        *image_messages,
                     ],
                 },
             ],
@@ -162,6 +236,7 @@ def recognize_file(record: dict[str, Any], upload_path: Path) -> dict[str, Any]:
 
     return {
         "file": record,
+        "input": input_meta,
         "model": os.getenv("QWEN_OCR_MODEL", settings.default_model),
         "recognized_at": datetime.now(UTC).isoformat(),
         "result": extracted,
