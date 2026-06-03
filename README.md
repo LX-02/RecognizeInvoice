@@ -54,6 +54,8 @@ http://127.0.0.1:8000
 - `DASHSCOPE_API_KEY`：必填，阿里云百炼 API Key。
 - `DASHSCOPE_BASE_URL`：可选，默认 `https://dashscope.aliyuncs.com/compatible-mode/v1`。
 - `QWEN_OCR_MODEL`：可选，默认 `qwen-vl-ocr-latest`。
+- `PDF_RENDER_DPI`：可选，PDF 转 PNG 的渲染清晰度，默认 `200`。
+- `PDF_MAX_PAGES`：可选，PDF 最多渲染并提交识别的页数，默认 `1`。
 
 ## 开发规范
 
